@@ -360,6 +360,16 @@ Parades :
 - À la connexion, si l'identifiant diffère du dernier connu (`facturx:lastUser`),
   purge avant tout affichage.
 
+> **Arbitrage.** Une version antérieure de ce document annonçait, en §12, que le
+> cache survivait à une expiration de session. C'était intenable : une déconnexion
+> volontaire et une expiration se présentent toutes deux comme une session nulle,
+> et le code ne peut pas les distinguer de façon fiable. Conserver le cache dans ce
+> cas laisserait les données d'un professionnel lisibles sur un téléphone partagé
+> après simple péremption du jeton. **La purge s'applique donc à toute session
+> nulle.** Le coût est nul sur les données — elles vivent dans Supabase — et ne
+> concerne que la consultation hors ligne, qui exige de toute façon une
+> reconnexion.
+
 ---
 
 ## 11. Ce que devient la fonction Express
@@ -394,7 +404,7 @@ construit tout côté client. Leur retrait ne casse rien.
 | Mot de passe trop court | Validation avant envoi, message sous le champ |
 | Identifiants invalides | Message unique, sans préciser lequel est faux |
 | Hors ligne à la connexion | « Connexion internet requise pour se connecter » |
-| Session expirée en cours d'usage | Retour à l'écran de connexion, **cache local conservé** |
+| Session expirée en cours d'usage | Retour à l'écran de connexion, **cache local purgé** |
 | Hors ligne pendant l'usage | Bandeau « hors ligne — lecture seule », affichage depuis le cache |
 | Violation RLS | Ne doit pas arriver ; message générique + trace console |
 | Échec d'écriture de la société | Maintien dans l'assistant, bouton Réessayer |
