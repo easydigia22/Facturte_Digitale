@@ -4,6 +4,16 @@
 - Langue de travail et de documentation : **français** (y compris les commentaires de code).
 - Les secrets vont dans `.env` (déjà couvert par `.gitignore` via `.env*`), jamais en dur dans le code.
 
+## Vocabulaire du domaine (ne pas confondre)
+- **Utilisateur** = le professionnel qui se connecte a FacturX Pro et emet ses
+  documents. C'est lui qui recoit le lien WhatsApp, installe la PWA et dispose
+  d'un **espace professionnel** isole (sa societe, ses donnees).
+- **Client** = une fiche `Customer` dans `fx_customers`, c'est-a-dire un client
+  **de** l'utilisateur, destinataire d'une facture. Jamais quelqu'un qui se connecte.
+- Correction recue le 2026-10-07 : j'avais ecrit « un client recoit le lien ».
+  Faux. Dire « un utilisateur ». Le multi-locataire se decoupe par utilisateur,
+  pas par client.
+
 ## Apprentissages
 - **ESM + dotenv** : un module importé est évalué *avant* le corps du module
   importateur. Lire `process.env` au niveau racine d'un module importé par
