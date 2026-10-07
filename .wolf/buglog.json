@@ -6,7 +6,14 @@
       "error_message": "/api/health renvoie supabaseConfigured: false alors que .env est bien chargé (dotenv annonce « injected env (5) from .env »)",
       "root_cause": "supabase.ts lisait process.env.SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY dans des constantes au niveau du module. En ESM, un module importé est entièrement évalué avant le corps du module importateur : ces constantes étaient donc initialisées avant l'appel à dotenv.config() dans server.ts, et valaient toujours la chaîne vide.",
       "fix": "Remplacement des constantes SUPABASE_URL / SERVICE_KEY par des fonctions supabaseUrl() et serviceKey() lisant process.env à l'appel, et isSupabaseConfigured exporté comme fonction. server.ts l'appelle dans son corps, après dotenv.config().",
-      "tags": ["esm", "dotenv", "env", "supabase", "ordre-evaluation", "module-top-level"]
+      "tags": [
+        "esm",
+        "dotenv",
+        "env",
+        "supabase",
+        "ordre-evaluation",
+        "module-top-level"
+      ]
     },
     {
       "id": "fx-002",
@@ -14,7 +21,45 @@
       "error_message": "npm error ERESOLVE could not resolve - peerOptional esbuild@\"^0.27.0 || ^0.28.0\" from vite@8.3.3 vs node_modules/tsx/node_modules/esbuild",
       "root_cause": "Conflit de peer dependencies préexistant entre vite@8 et la version d'esbuild embarquée par tsx. node_modules n'avait jamais été installé.",
       "fix": "npm install --legacy-peer-deps. Documenté dans .wolf/anatomy.md. Évité d'ajouter @supabase/supabase-js pour ne pas aggraver l'arbre : persistance via l'API REST PostgREST et fetch natif.",
-      "tags": ["npm", "eresolve", "peer-deps", "vite", "esbuild", "tsx"]
+      "tags": [
+        "npm",
+        "eresolve",
+        "peer-deps",
+        "vite",
+        "esbuild",
+        "tsx"
+      ]
+    },
+    {
+      "id": "fx-003",
+      "date": "2026-10-07",
+      "error_message": "Deploiement Vercel en echec : Command \"npm install\" exited with 1 (ERESOLVE, peerOptional esbuild de tsx vs vite@8.3.3)",
+      "root_cause": "Meme conflit de peer dependencies que fx-002, mais cote build Vercel : le flag --legacy-peer-deps n'etait passe qu'a la main en local, rien ne le portait dans le depot.",
+      "fix": "Ajout d'un .npmrc committe contenant legacy-peer-deps=true. Corrige l'install en local et sur Vercel sans surcharger installCommand.",
+      "tags": [
+        "vercel",
+        "deploiement",
+        "npm",
+        "eresolve",
+        "peer-deps",
+        "npmrc",
+        "ci"
+      ]
+    },
+    {
+      "id": "fx-004",
+      "date": "2026-10-07",
+      "error_message": "app.ts genere avec tout son contenu en double : TS2300 Duplicate identifier / TS2451 Cannot redeclare block-scoped variable (une trentaine d'erreurs)",
+      "root_cause": "Dans le script de decoupage, l'expression `head.split('\n', 0)[0] + head` concatenait head avec lui-meme : split avec maxsplit=0 renvoie [head] entier, et non la premiere ligne.",
+      "fix": "Script de decoupage reecrit pour n'ecrire que `banner + head + export default app`, en repartant de `git show HEAD:server.ts` puisque server.ts avait deja ete remplace. Verifie par npx tsc --noEmit.",
+      "tags": [
+        "python",
+        "script-generation",
+        "typescript",
+        "duplication",
+        "refactor",
+        "split"
+      ]
     }
   ]
 }

@@ -73,3 +73,54 @@ rien. Seul `service_role`, côté serveur, lit et écrit.
 
 > `database/postgres_schema.sql` reste disponible comme schéma relationnel
 > de référence (export / BI). Il n'est pas utilisé par l'application.
+
+## Déploiement — Vercel
+
+Production : **https://facturte-digitale.vercel.app**
+
+Vercel ne fait pas tourner de serveur Express persistant. Le projet est donc
+découpé en deux :
+
+| Point d'entrée | Rôle |
+|---|---|
+| `app.ts` | Application Express (routes `/api/*`) — **partagée** |
+| `server.ts` | Serveur Node local : middleware Vite en dev, `dist/` en prod self-hosted |
+| `api/index.ts` | Fonction serverless Vercel — exporte `app` tel quel |
+
+`vercel.json` construit le front avec `vite build` vers `dist/`, réécrit
+`/api/*` vers la fonction et tout le reste vers `index.html` (SPA).
+
+### Variables d'environnement
+
+À définir dans **Vercel → Settings → Environment Variables** (Production et
+Preview), en type *Sensitive* :
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEMINI_API_KEY` *(optionnel — les fonctions IA sont inactives sans elle)*
+
+### Spécificités serverless
+
+- **Pas de repli disque.** Le système de fichiers est en lecture seule et
+  chaque invocation est isolée : les écritures `store.json` sont désactivées
+  dès que `VERCEL` est défini. **Supabase est l'unique source de vérité en
+  production** — le schéma doit donc être appliqué avant tout usage.
+- **Pas de phase de démarrage.** La vérification Supabase est paresseuse
+  (`ensureSupabaseReady`) et son résultat réutilisé tant que l'instance
+  reste chaude.
+
+`GET /api/health` indique le runtime effectif :
+
+```json
+{ "storage": "supabase", "runtime": "vercel-serverless" }
+```
+
+### Redéploiement
+
+```bash
+vercel deploy --prod --scope easydigia
+```
+
+> `.npmrc` fixe `legacy-peer-deps=true` : sans lui `npm install` échoue
+> (conflit `vite@8` / `esbuild` embarqué par `tsx`), en local comme sur Vercel.
