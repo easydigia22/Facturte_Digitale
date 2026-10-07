@@ -12,3 +12,6 @@ package-lock.json
 
 # Base locale / repli hors ligne
 database/store.json
+
+.vercel
+.env*
