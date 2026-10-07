@@ -21,6 +21,7 @@ import {
   Supplier,
 } from './types';
 import { api, localStore } from './services/api';
+import { InstallPrompt } from './components/InstallPrompt';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -493,6 +494,8 @@ export default function App() {
         currency={company.currency}
         darkMode={darkMode}
       />
+
+      <InstallPrompt />
     </div>
   );
 }
