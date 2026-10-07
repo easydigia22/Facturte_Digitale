@@ -1,0 +1,20 @@
+{
+  "bugs": [
+    {
+      "id": "fx-001",
+      "date": "2026-10-07",
+      "error_message": "/api/health renvoie supabaseConfigured: false alors que .env est bien chargé (dotenv annonce « injected env (5) from .env »)",
+      "root_cause": "supabase.ts lisait process.env.SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY dans des constantes au niveau du module. En ESM, un module importé est entièrement évalué avant le corps du module importateur : ces constantes étaient donc initialisées avant l'appel à dotenv.config() dans server.ts, et valaient toujours la chaîne vide.",
+      "fix": "Remplacement des constantes SUPABASE_URL / SERVICE_KEY par des fonctions supabaseUrl() et serviceKey() lisant process.env à l'appel, et isSupabaseConfigured exporté comme fonction. server.ts l'appelle dans son corps, après dotenv.config().",
+      "tags": ["esm", "dotenv", "env", "supabase", "ordre-evaluation", "module-top-level"]
+    },
+    {
+      "id": "fx-002",
+      "date": "2026-10-07",
+      "error_message": "npm error ERESOLVE could not resolve - peerOptional esbuild@\"^0.27.0 || ^0.28.0\" from vite@8.3.3 vs node_modules/tsx/node_modules/esbuild",
+      "root_cause": "Conflit de peer dependencies préexistant entre vite@8 et la version d'esbuild embarquée par tsx. node_modules n'avait jamais été installé.",
+      "fix": "npm install --legacy-peer-deps. Documenté dans .wolf/anatomy.md. Évité d'ajouter @supabase/supabase-js pour ne pas aggraver l'arbre : persistance via l'API REST PostgREST et fetch natif.",
+      "tags": ["npm", "eresolve", "peer-deps", "vite", "esbuild", "tsx"]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "FacturX Pro - Gestion Commerciale & Facturation",
+  "description": "Application moderne de facturation, devis, bons de commande, gestion clients et catalogue pour TPE et PME avec exports PDF, Word, Excel et IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
