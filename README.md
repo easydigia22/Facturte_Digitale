@@ -124,3 +124,35 @@ vercel deploy --prod --scope easydigia
 
 > `.npmrc` fixe `legacy-peer-deps=true` : sans lui `npm install` échoue
 > (conflit `vite@8` / `esbuild` embarqué par `tsx`), en local comme sur Vercel.
+
+## Application installable (PWA)
+
+L'application s'installe depuis le navigateur et se lance ensuite depuis l'écran
+d'accueil, sans barre d'adresse.
+
+| Fichier | Rôle |
+|---|---|
+| `public/manifest.webmanifest` | Nom, icônes, couleurs, mode d'affichage |
+| `public/sw.js` | Service worker : réseau d'abord sur la navigation, cache d'abord sur `/assets/*`, jamais de cache sur `/api/*` |
+| `src/utils/platform.ts` | Décision **pure** d'affichage du bandeau — couverte par `tests/platform.test.ts` |
+| `src/components/InstallPrompt.tsx` | Les trois variantes du bandeau |
+| `scripts/brand-assets.html` | Gabarit de regénération des icônes et de la vignette |
+
+### Le parcours depuis WhatsApp
+
+Le navigateur intégré de WhatsApp **ne peut pas installer de PWA**. L'application
+le détecte et invite à rouvrir le lien dans Chrome ou Safari. Sur iPhone, aucune
+invite n'est programmable : la marche à suivre *Partager → Sur l'écran d'accueil*
+est affichée à la place.
+
+### Regénérer les images
+
+Ouvrir `scripts/brand-assets.html` dans un navigateur et capturer les blocs
+`#icone`, `#icone-maskable` et `#banniere` aux tailles indiquées dans le plan
+`docs/superpowers/plans/2026-10-07-lot1-pwa-installable.md` (tâche 3).
+Garder `og-image.png` sous 300 Ko.
+
+### Premier lancement hors ligne
+
+Il exige une visite en ligne préalable : le service worker ne précache pas les
+fichiers hachés par Vite. Compromis assumé pour ne pas ajouter de plugin de build.
