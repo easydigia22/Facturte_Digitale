@@ -78,9 +78,14 @@ export const InstallPrompt: React.FC = () => {
 
   const installer = async () => {
     if (!invite) return;
-    await invite.prompt();
-    const { outcome } = await invite.userChoice;
-    if (outcome === 'accepted') setInvite(null);
+    try {
+      await invite.prompt();
+      const { outcome } = await invite.userChoice;
+      if (outcome === 'accepted') setInvite(null);
+    } catch {
+      // L'invite a été rejetée ou le navigateur a refusé : le bandeau reste
+      // visible pour permettre une nouvelle tentative.
+    }
   };
 
   /**
