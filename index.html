@@ -12,6 +12,9 @@
          l'apparence une fois ajouté à l'écran d'accueil. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- `apple-mobile-web-app-capable` est déprécié ; on garde les deux le
+         temps que les anciens iOS disparaissent. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="FacturX" />
     <meta property="og:title" content="FacturX Pro - Gestion Commerciale & Facturation" />
@@ -30,6 +33,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Capture de `beforeinstallprompt` avant React.
+         Lors d'une visite répétée, le service worker est déjà actif et le
+         manifeste déjà lu : Chrome peut émettre l'événement bien avant que
+         le composant React n'ait monté son écouteur. S'il tombait dans le
+         vide, le bandeau d'installation resterait invisible toute la session
+         sur Chrome Android, c'est-à-dire sur le chemin d'installation
+         principal. On le met de côté ici ; `InstallPrompt` le relit. -->
+    <script>
+      window.addEventListener('beforeinstallprompt', function (evenement) {
+        evenement.preventDefault();
+        window.__fxInstallPrompt = evenement;
+      });
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased font-sans selection:bg-indigo-500 selection:text-white">
     <div id="root"></div>
