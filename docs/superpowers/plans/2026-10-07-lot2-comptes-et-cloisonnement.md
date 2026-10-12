@@ -455,7 +455,7 @@ Ajouter à `.env` (valeurs réelles, fichier ignoré par git) :
 ```
 # Exposées au navigateur (préfixe VITE_). Publiques par conception :
 # c'est le RLS qui protège les données, pas le secret de la clé anon.
-VITE_SUPABASE_URL="https://qnojuppxnmzxmhbtlbhm.supabase.co"
+VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
 VITE_SUPABASE_ANON_KEY="<même valeur que SUPABASE_ANON_KEY>"
 ```
 
