@@ -22,6 +22,9 @@
 - Longueur minimale du mot de passe : **8 caractères**, validée côté front *et* côté projet Supabase.
 - Confirmation d'e-mail Supabase : **désactivée**.
 - Aucun secret en dur dans le code ; `.env` reste ignoré par git.
+- **La base contient des données commerciales réelles.** Aucune instruction
+  `drop table` n'est admise. Toute opération destructive exige une sauvegarde
+  fraîche dans `sauvegardes/` et l'accord explicite de l'utilisateur.
 - `npx tsc --noEmit` et `npm test` doivent passer à chaque commit.
 - Entre la tâche 5 et la tâche 8, **l'application est volontairement inutilisable** : les données de démonstration ont disparu et l'aiguillage de session n'existe pas encore. Ne pas déployer dans cet intervalle.
 
@@ -69,157 +72,179 @@ La garantie de cloisonnement est la raison d'être de ce lot. On l'écrit **et o
 - Consumes: rien.
 - Produces: 5 tables `fx_*` portant `owner_id`, clés `(owner_id, id)` sauf `fx_company` (clé `owner_id`), politiques RLS `for all to authenticated`.
 
-- [ ] **Step 1 : Écrire le script de migration complet**
+> ### ⚠️ Révision du 2026-10-12 — la base n'est plus vide
+>
+> Ce plan a été écrit le 2026-10-07 alors que les cinq tables étaient vides, et
+> sa migration d'origine commençait par `drop table … cascade`. Depuis,
+> l'application a servi en production et la base contient des **données
+> commerciales réelles** : la société ART VITRAGE SARL, un client, un article et
+> deux documents.
+>
+> La migration d'origine les détruirait. Elle est remplacée ci-dessous par une
+> migration **en deux phases qui ne supprime aucune table**. Une sauvegarde
+> complète a par ailleurs été écrite dans `sauvegardes/` (dossier ignoré par
+> git — il contient des données commerciales et le dépôt est public).
 
-Fichier **exécutable d'un seul bloc**. Les 5 tables sont vides (vérifié) : il les recrée.
+- [ ] **Step 1 : Sauvegarder avant toute chose**
+
+Vérifier qu'une sauvegarde fraîche existe, et la refaire si elle date :
+
+```bash
+ls -l sauvegardes/
+```
+
+Elle doit contenir les cinq tables au format JSON. Sans elle, ne pas continuer :
+les étapes suivantes modifient des contraintes sur des données réelles.
+
+- [ ] **Step 2 : Phase A — ajouter la colonne propriétaire (non destructif)**
+
+Fichier à créer : **`database/supabase_auth_migration_phase_a.sql`**, exécutable
+d'un seul bloc dans le SQL Editor Supabase. Cette phase n'enlève rien : elle
+ajoute une colonne nullable. L'application continue de fonctionner pendant ce
+temps.
 
 ```sql
--- ==========================================================
--- FACTURES DIGITALE — Cloisonnement par utilisateur
--- ==========================================================
--- À exécuter UNE SEULE FOIS, d'un seul bloc, dans :
---   Supabase Dashboard > SQL Editor > New query > Run
---
--- Remplace database/supabase_schema.sql, qui ne connaissait
--- qu'un seul espace global accessible via service_role.
---
--- Après cette migration, chaque ligne appartient à un compte
--- Supabase et PostgreSQL interdit lui-même toute lecture ou
--- écriture croisée.
--- ==========================================================
-
 begin;
 
--- ---------- 1. Société : une seule par compte ----------
--- owner_id devient la clé primaire : la contrainte « singleton »
--- de l'ancien schéma n'a plus de raison d'être.
-drop table if exists public.fx_company cascade;
-create table public.fx_company (
-  owner_id   uuid primary key
-             references auth.users(id) on delete cascade
-             default auth.uid(),
-  data       jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+-- Colonne propriétaire, NULLABLE pour l'instant : les lignes existantes n'ont
+-- pas encore de compte à qui être rattachées. Le défaut auth.uid() s'applique
+-- aux insertions futures.
+alter table public.fx_company   add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table public.fx_customers add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table public.fx_suppliers add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table public.fx_products  add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table public.fx_documents add column if not exists owner_id uuid references auth.users(id) on delete cascade;
 
--- ---------- 2. Collections : clé composite (owner_id, id) ----------
--- Les identifiants sont generes par le navigateur sous la forme
--- `cust-${Date.now()}` : ils ne sont PAS uniques entre comptes.
--- La clé composite rend les collisions inoffensives.
-drop table if exists public.fx_customers cascade;
-create table public.fx_customers (
-  owner_id   uuid not null references auth.users(id) on delete cascade default auth.uid(),
-  id         text not null,
-  data       jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (owner_id, id)
-);
+alter table public.fx_company   alter column owner_id set default auth.uid();
+alter table public.fx_customers alter column owner_id set default auth.uid();
+alter table public.fx_suppliers alter column owner_id set default auth.uid();
+alter table public.fx_products  alter column owner_id set default auth.uid();
+alter table public.fx_documents alter column owner_id set default auth.uid();
 
-drop table if exists public.fx_suppliers cascade;
-create table public.fx_suppliers (
-  owner_id   uuid not null references auth.users(id) on delete cascade default auth.uid(),
-  id         text not null,
-  data       jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (owner_id, id)
-);
+commit;
+```
 
-drop table if exists public.fx_products cascade;
-create table public.fx_products (
-  owner_id   uuid not null references auth.users(id) on delete cascade default auth.uid(),
-  id         text not null,
-  data       jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (owner_id, id)
-);
+- [ ] **Step 3 : Créer le compte propriétaire des données existantes**
 
--- Les lignes de document sont incluses dans data->'items'.
-drop table if exists public.fx_documents cascade;
-create table public.fx_documents (
-  owner_id   uuid not null references auth.users(id) on delete cascade default auth.uid(),
-  id         text not null,
-  data       jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (owner_id, id)
-);
+Les données actuelles appartiennent à l'exploitant de l'application. Il lui faut
+un compte avant que la phase B puisse les lui rattacher.
 
--- ---------- 3. Index, en tête de owner_id ----------
--- Toute requête étant filtrée par compte, owner_id vient en premier.
-create index fx_customers_owner_name_idx   on public.fx_customers (owner_id, (data->>'name'));
-create index fx_suppliers_owner_name_idx   on public.fx_suppliers (owner_id, (data->>'name'));
-create index fx_products_owner_ref_idx     on public.fx_products  (owner_id, (data->>'reference'));
-create index fx_documents_owner_number_idx on public.fx_documents (owner_id, (data->>'number'));
-create index fx_documents_owner_type_idx   on public.fx_documents (owner_id, (data->>'type'));
-create index fx_documents_owner_date_idx   on public.fx_documents (owner_id, (data->>'date') desc);
+Dans **Supabase Dashboard → Authentication → Users → Add user**, créer le compte
+avec son e-mail et un mot de passe d'au moins 8 caractères, en cochant
+« Auto Confirm User ». Relever l'**UUID** affiché : la phase B en a besoin.
 
--- ---------- 4. Horodatage automatique ----------
-create or replace function public.fx_touch_updated_at()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
+Vérifier au passage que *Authentication → Providers → Email → Confirm email* est
+bien **désactivé**, sinon les inscriptions ultérieures resteront sans session.
+
+- [ ] **Step 4 : Phase B — rattacher, verrouiller et cloisonner**
+
+Fichier à créer : **`database/supabase_auth_migration_phase_b.sql`**.
+**Remplacer les cinq occurrences de `<UUID-DU-COMPTE>` par l'UUID relevé** avant
+d'exécuter. Le script s'interrompt de lui-même si des lignes restent orphelines.
+
+```sql
+begin;
+
+-- ---------- 1. Rattacher les données existantes ----------
+update public.fx_company   set owner_id = '<UUID-DU-COMPTE>' where owner_id is null;
+update public.fx_customers set owner_id = '<UUID-DU-COMPTE>' where owner_id is null;
+update public.fx_suppliers set owner_id = '<UUID-DU-COMPTE>' where owner_id is null;
+update public.fx_products  set owner_id = '<UUID-DU-COMPTE>' where owner_id is null;
+update public.fx_documents set owner_id = '<UUID-DU-COMPTE>' where owner_id is null;
+
+-- Garde-fou : interrompt la transaction si une ligne n'a pas de propriétaire.
+-- Sans elle, le `set not null` ci-dessous échouerait plus loin avec un message
+-- nettement moins clair.
+do $$
+declare orphelines int;
 begin
-  new.updated_at = now();
-  return new;
+  select (select count(*) from public.fx_company   where owner_id is null)
+       + (select count(*) from public.fx_customers where owner_id is null)
+       + (select count(*) from public.fx_suppliers where owner_id is null)
+       + (select count(*) from public.fx_products  where owner_id is null)
+       + (select count(*) from public.fx_documents where owner_id is null)
+    into orphelines;
+  if orphelines > 0 then
+    raise exception 'Migration interrompue : % ligne(s) sans owner_id.', orphelines;
+  end if;
 end;
 $$;
 
-create trigger fx_company_touch before update on public.fx_company
-  for each row execute function public.fx_touch_updated_at();
-create trigger fx_customers_touch before update on public.fx_customers
-  for each row execute function public.fx_touch_updated_at();
-create trigger fx_suppliers_touch before update on public.fx_suppliers
-  for each row execute function public.fx_touch_updated_at();
-create trigger fx_products_touch before update on public.fx_products
-  for each row execute function public.fx_touch_updated_at();
-create trigger fx_documents_touch before update on public.fx_documents
-  for each row execute function public.fx_touch_updated_at();
+-- ---------- 2. Rendre la colonne obligatoire ----------
+alter table public.fx_company   alter column owner_id set not null;
+alter table public.fx_customers alter column owner_id set not null;
+alter table public.fx_suppliers alter column owner_id set not null;
+alter table public.fx_products  alter column owner_id set not null;
+alter table public.fx_documents alter column owner_id set not null;
 
--- ==========================================================
--- 5. CLOISONNEMENT
--- ==========================================================
--- `using` filtre ce qui est lisible ; `with check` interdit
--- d'écrire au nom d'autrui. Les deux sont nécessaires :
--- `using` seul laisserait passer une insertion usurpée.
--- ==========================================================
-alter table public.fx_company   enable row level security;
-alter table public.fx_customers enable row level security;
-alter table public.fx_suppliers enable row level security;
-alter table public.fx_products  enable row level security;
-alter table public.fx_documents enable row level security;
+-- ---------- 3. Société : le compte devient la clé ----------
+-- La contrainte « singleton » n'a plus de sens : une société PAR COMPTE.
+alter table public.fx_company drop constraint if exists fx_company_singleton;
+alter table public.fx_company drop constraint if exists fx_company_pkey;
+alter table public.fx_company add primary key (owner_id);
+-- La colonne `id` devient décorative ; elle reste dans `data` côté application.
+alter table public.fx_company drop column if exists id;
+
+-- ---------- 4. Collections : clé composite (owner_id, id) ----------
+-- Les identifiants sont générés par le navigateur sous la forme
+-- `cust-${Date.now()}` : ils ne sont PAS uniques entre comptes. La clé
+-- composite rend les collisions inoffensives.
+alter table public.fx_customers drop constraint if exists fx_customers_pkey;
+alter table public.fx_customers add primary key (owner_id, id);
+alter table public.fx_suppliers drop constraint if exists fx_suppliers_pkey;
+alter table public.fx_suppliers add primary key (owner_id, id);
+alter table public.fx_products  drop constraint if exists fx_products_pkey;
+alter table public.fx_products  add primary key (owner_id, id);
+alter table public.fx_documents drop constraint if exists fx_documents_pkey;
+alter table public.fx_documents add primary key (owner_id, id);
+
+-- ---------- 5. Index, en tête de owner_id ----------
+drop index if exists public.fx_customers_name_idx;
+drop index if exists public.fx_suppliers_name_idx;
+drop index if exists public.fx_products_ref_idx;
+drop index if exists public.fx_documents_number_idx;
+drop index if exists public.fx_documents_type_idx;
+drop index if exists public.fx_documents_date_idx;
+drop index if exists public.fx_documents_customer_idx;
+
+create index if not exists fx_customers_owner_name_idx   on public.fx_customers (owner_id, (data->>'name'));
+create index if not exists fx_suppliers_owner_name_idx   on public.fx_suppliers (owner_id, (data->>'name'));
+create index if not exists fx_products_owner_ref_idx     on public.fx_products  (owner_id, (data->>'reference'));
+create index if not exists fx_documents_owner_number_idx on public.fx_documents (owner_id, (data->>'number'));
+create index if not exists fx_documents_owner_type_idx   on public.fx_documents (owner_id, (data->>'type'));
+create index if not exists fx_documents_owner_date_idx   on public.fx_documents (owner_id, (data->>'date') desc);
+
+-- ---------- 6. Cloisonnement ----------
+-- `using` filtre ce qui est lisible ; `with check` interdit d'écrire au nom
+-- d'autrui. Les deux sont nécessaires : `using` seul laisserait passer une
+-- insertion usurpée.
+drop policy if exists fx_company_own   on public.fx_company;
+drop policy if exists fx_customers_own on public.fx_customers;
+drop policy if exists fx_suppliers_own on public.fx_suppliers;
+drop policy if exists fx_products_own  on public.fx_products;
+drop policy if exists fx_documents_own on public.fx_documents;
 
 create policy fx_company_own on public.fx_company
   for all to authenticated
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-
 create policy fx_customers_own on public.fx_customers
   for all to authenticated
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-
 create policy fx_suppliers_own on public.fx_suppliers
   for all to authenticated
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-
 create policy fx_products_own on public.fx_products
   for all to authenticated
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-
 create policy fx_documents_own on public.fx_documents
   for all to authenticated
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
--- Droits encadrés par les politiques ci-dessus.
 grant select, insert, update, delete on
   public.fx_company, public.fx_customers, public.fx_suppliers,
   public.fx_products, public.fx_documents
 to authenticated;
 
--- Un visiteur non authentifié n'a accès à rien.
 revoke all on
   public.fx_company, public.fx_customers, public.fx_suppliers,
   public.fx_products, public.fx_documents
@@ -228,7 +253,28 @@ from anon;
 commit;
 ```
 
-- [ ] **Step 2 : Écrire le test d'étanchéité, qui doit échouer**
+- [ ] **Step 5 : Vérifier que les données réelles ont survécu**
+
+```bash
+set -a && . ./.env && set +a
+python3 -I - <<'EOF'
+import json, os, urllib.request
+base = os.environ['SUPABASE_URL'] + '/rest/v1'
+cle = os.environ['SUPABASE_SERVICE_ROLE_KEY']
+for t in ['fx_company','fx_customers','fx_suppliers','fx_products','fx_documents']:
+    r = urllib.request.Request(base + '/' + t + '?select=owner_id',
+        headers={'apikey': cle, 'Authorization': 'Bearer ' + cle})
+    lignes = json.loads(urllib.request.urlopen(r).read())
+    sans = sum(1 for l in lignes if not l.get('owner_id'))
+    print('%-14s %d ligne(s), %d sans propriétaire' % (t, len(lignes), sans))
+EOF
+```
+
+Attendu : les comptes d'origine sont retrouvés (1 société, 1 client, 1 article,
+2 documents au 2026-10-12) et **zéro ligne sans propriétaire**. En cas d'écart,
+restaurer depuis `sauvegardes/` avant d'aller plus loin.
+
+- [ ] **Step 6 : Écrire le test d'étanchéité, qui doit échouer**
 
 Ce test parle au **vrai** Supabase : c'est la seule façon de prouver qu'une politique RLS fait ce qu'elle annonce. Il se saute proprement si les clés sont absentes.
 
@@ -400,7 +446,11 @@ describe.skipIf(!configure)('cloisonnement RLS entre comptes', () => {
 });
 ```
 
-- [ ] **Step 3 : Lancer le test et constater l'échec**
+> Note : le test d'étanchéité ci-dessous crée ses propres comptes jetables et
+> les supprime ensuite. Il coexiste avec les données réelles sans les toucher —
+> les assertions portent uniquement sur les lignes de ses propres comptes.
+
+- [ ] **Step 7 : Lancer le test et constater l'échec**
 
 ```bash
 set -a && . ./.env && set +a && npm test -- tests/rls-isolation.test.ts
@@ -408,14 +458,12 @@ set -a && . ./.env && set +a && npm test -- tests/rls-isolation.test.ts
 
 Expected: ÉCHEC — les tables n'ont pas encore de colonne `owner_id`, les insertions sont refusées (`42703 column "owner_id" does not exist`) ou la politique manque.
 
-- [ ] **Step 4 : Appliquer la migration**
-
 Ouvrir **Supabase Dashboard → SQL Editor → New query**, coller **l'intégralité** de `database/supabase_auth_migration.sql`, puis **Run**.
 
 Avant cela, vérifier que la confirmation d'e-mail est désactivée :
 *Authentication → Providers → Email → Confirm email* **OFF**. Sans ça, `signup` ne renvoie pas de jeton et le test échoue avec un message explicite.
 
-- [ ] **Step 5 : Lancer le test et constater le succès**
+- [ ] **Step 8 : Lancer le test et constater le succès**
 
 ```bash
 set -a && . ./.env && set +a && npm test -- tests/rls-isolation.test.ts
@@ -423,7 +471,7 @@ set -a && . ./.env && set +a && npm test -- tests/rls-isolation.test.ts
 
 Expected: SUCCÈS — 7 tests passent. **C'est la preuve que le produit cloisonne.**
 
-- [ ] **Step 6 : Commit**
+- [ ] **Step 9 : Commit**
 
 ```bash
 git add database/supabase_auth_migration.sql tests/rls-isolation.test.ts
