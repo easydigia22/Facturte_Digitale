@@ -15,3 +15,6 @@ database/store.json
 
 .vercel
 .env*
+
+# Sauvegardes de données réelles — ne jamais publier
+sauvegardes/
