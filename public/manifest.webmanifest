@@ -4,6 +4,7 @@
   "description": "Devis, factures, bons de livraison et avoirs conformes à la réglementation marocaine.",
   "lang": "fr",
   "dir": "ltr",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
