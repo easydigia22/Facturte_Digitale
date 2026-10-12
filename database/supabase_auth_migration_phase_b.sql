@@ -7,8 +7,9 @@
 --      Supabase Dashboard > Authentication > Users > Add user
 --      (cocher « Auto Confirm User », relever l'UUID affiché)
 --
--- AVANT D'EXÉCUTER : remplacer les CINQ occurrences de
--- <UUID-DU-COMPTE> par l'UUID relevé.
+-- AVANT D'EXÉCUTER : remplacer partout <UUID-DU-COMPTE> par l'UUID
+-- relevé — cinq fois dans les instructions UPDATE ci-dessous, plus la
+-- mention de cette ligne même. Un simple « remplacer tout » suffit.
 --
 -- Cette phase durcit les contraintes sur des données réelles.
 -- Une sauvegarde doit exister dans sauvegardes/.
