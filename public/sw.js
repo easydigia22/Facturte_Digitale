@@ -27,6 +27,30 @@ self.addEventListener('activate', (event) => {
       .then((cles) =>
         Promise.all(cles.filter((cle) => cle !== CACHE).map((cle) => caches.delete(cle)))
       )
+      // Purge des actifs hachés à chaque activation.
+      //
+      // Le nom du cache est constant, donc la boucle ci-dessus ne supprime
+      // jamais rien : chaque déploiement ajoutait un jeu complet de bundles
+      // (xlsx, docx, @google/genai : plusieurs mégaoctets) sans qu'aucun ne
+      // soit retiré. Au bout de quelques déploiements, le quota de l'origine
+      // est atteint sur un téléphone d'entrée de gamme et le navigateur évince
+      // *tout* le stockage de l'origine, coquille comprise.
+      //
+      // On repart donc d'un cache d'actifs vide : le coût est un re-téléchargement
+      // au premier lancement après mise à jour, ce que le réseau d'abord sur la
+      // navigation impose déjà. La coquille, elle, est conservée.
+      .then(() =>
+        caches.open(CACHE).then((cache) =>
+          cache.keys().then((requetes) =>
+            Promise.all(
+              requetes
+                .filter((requete) => new URL(requete.url).pathname.startsWith('/assets/'))
+                .map((requete) => cache.delete(requete))
+            )
+          )
+        )
+      )
+      .catch(() => {})
       .then(() => self.clients.claim())
   );
 });
@@ -48,8 +72,26 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(requete)
         .then((reponse) => {
-          const copie = reponse.clone();
-          caches.open(CACHE).then((cache) => cache.put(COQUILLE, copie));
+          // Ne remplacer la coquille que par une réponse saine.
+          //
+          // Sans ce filtre, un 500 de Vercel pendant un mauvais déploiement,
+          // une page 401 de protection de déploiement ou une page de
+          // maintenance écrasait la coquille connue comme bonne : toute
+          // navigation hors ligne servait ensuite cette page d'erreur comme
+          // application, sans que la personne puisse comprendre pourquoi.
+          //
+          // `type === 'basic'` écarte aussi les réponses `opaqueredirect` :
+          // une requête de navigation porte `redirect: 'manual'`, donc une
+          // réponse de redirection revient opaque et `cache.put` la rejette.
+          if (reponse.ok && reponse.type === 'basic') {
+            const copie = reponse.clone(); // cloner AVANT tout await
+            caches
+              .open(CACHE)
+              .then((cache) => cache.put(COQUILLE, copie))
+              // Quota dépassé, réponse inattendue : un rejet non capturé ici
+              // deviendrait une « unhandled rejection » dans le worker.
+              .catch(() => {});
+          }
           return reponse;
         })
         .catch(() => caches.match(COQUILLE).then((hit) => hit || Response.error()))
@@ -66,7 +108,10 @@ self.addEventListener('fetch', (event) => {
           fetch(requete).then((reponse) => {
             if (reponse.ok) {
               const copie = reponse.clone();
-              caches.open(CACHE).then((cache) => cache.put(requete, copie));
+              caches
+                .open(CACHE)
+                .then((cache) => cache.put(requete, copie))
+                .catch(() => {}); // quota, réponses opaques
             }
             return reponse;
           })

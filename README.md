@@ -133,17 +133,28 @@ d'accueil, sans barre d'adresse.
 | Fichier | Rôle |
 |---|---|
 | `public/manifest.webmanifest` | Nom, icônes, couleurs, mode d'affichage |
-| `public/sw.js` | Service worker : réseau d'abord sur la navigation, cache d'abord sur `/assets/*`, jamais de cache sur `/api/*` |
+| `public/sw.js` | Service worker : réseau d'abord sur la navigation, cache d'abord sur `/assets/*`, jamais de cache sur `/api/*`. **Incrémenter `facturx-v1` à chaque release** : l'activation purge les actifs `/assets/` et un nouveau nom de cache force une repartition propre |
 | `src/utils/platform.ts` | Décision **pure** d'affichage du bandeau — couverte par `tests/platform.test.ts` |
-| `src/components/InstallPrompt.tsx` | Les trois variantes du bandeau |
+| `src/components/InstallPrompt.tsx` | Les quatre variantes du bandeau |
 | `scripts/brand-assets.html` | Gabarit de regénération des icônes et de la vignette |
+
+### Sortie de secours si un service worker est livré cassé
+
+Un service worker défectueux survit aux déploiements : il intercepte déjà les
+requêtes des visiteurs. La seule sortie est de **livrer un `sw.js` qui appelle
+`registration.unregister()` et vide `caches`** (`caches.keys()` puis
+`caches.delete()`), puis `self.clients.claim()` ; les navigateurs récupèrent ce
+worker « de désinstallation » et se nettoient eux-mêmes.
 
 ### Le parcours depuis WhatsApp
 
 Le navigateur intégré de WhatsApp **ne peut pas installer de PWA**. L'application
 le détecte et invite à rouvrir le lien dans Chrome ou Safari. Sur iPhone, aucune
 invite n'est programmable : la marche à suivre *Partager → Sur l'écran d'accueil*
-est affichée à la place.
+est affichée à la place. Sur un navigateur mobile qui n'émet jamais
+`beforeinstallprompt` (Firefox Android, Opera, surcouches constructeur), le
+bandeau renvoie vers « Ajouter à l'écran d'accueil » dans le menu du navigateur
+plutôt que de se taire.
 
 ### Regénérer les images
 
