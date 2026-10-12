@@ -17,6 +17,12 @@ const UA = {
     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
   chromeDesktop:
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+  firefoxAndroid:
+    'Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0',
+  operaMiniAndroid:
+    'Mozilla/5.0 (Linux; Android 10; SM-A105F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36 OPR/76.0.0.0',
+  firefoxDesktop:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
 };
 
 describe('isInAppBrowser', () => {
@@ -104,6 +110,30 @@ describe('installAdvice', () => {
     expect(
       installAdvice({ ua: UA.safariIphone, standalone: false, promptAvailable: false })
     ).toBe('ios-instructions');
+  });
+
+  it("renvoie les instructions de menu sur Firefox Android, qui n'émet jamais beforeinstallprompt", () => {
+    expect(
+      installAdvice({ ua: UA.firefoxAndroid, standalone: false, promptAvailable: false })
+    ).toBe('menu-instructions');
+  });
+
+  it('renvoie les instructions de menu sur Opera Mobile sans invite disponible', () => {
+    expect(
+      installAdvice({ ua: UA.operaMiniAndroid, standalone: false, promptAvailable: false })
+    ).toBe('menu-instructions');
+  });
+
+  it("ne renvoie pas les instructions de menu quand l'invite native est disponible", () => {
+    expect(
+      installAdvice({ ua: UA.firefoxAndroid, standalone: false, promptAvailable: true })
+    ).toBe('prompt');
+  });
+
+  it('reste masqué sur Firefox de bureau, où le bandeau ne sert à rien', () => {
+    expect(
+      installAdvice({ ua: UA.firefoxDesktop, standalone: false, promptAvailable: false })
+    ).toBe('hidden');
   });
 
   it('reste masqué sur un navigateur de bureau sans invite disponible', () => {

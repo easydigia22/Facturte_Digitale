@@ -26,6 +26,18 @@ export function isInAppBrowser(ua: string): boolean {
   return /;\s*wv\)/.test(ua);
 }
 
+/**
+ * `true` si le user-agent désigne un appareil mobile.
+ *
+ * Sert uniquement à distinguer un téléphone d'un ordinateur de bureau : sur
+ * mobile, tous les navigateurs offrent « Ajouter à l'écran d'accueil » dans
+ * leur propre menu, même ceux qui n'émettent jamais `beforeinstallprompt`
+ * (Firefox Android, Opera, navigateurs de surcouche constructeur).
+ */
+export function isMobile(ua: string): boolean {
+  return /Android|Mobile/.test(ua);
+}
+
 /** `true` sur iPhone, iPad ou iPod. */
 export function isIos(ua: string): boolean {
   return /iPad|iPhone|iPod/.test(ua);
@@ -52,7 +64,18 @@ export type InstallAdvice =
   /** La marche à suivre « Partager → Sur l'écran d'accueil ». */
   | 'ios-instructions'
   /** Inviter à rouvrir le lien dans un vrai navigateur. */
-  | 'open-in-browser';
+  | 'open-in-browser'
+  /**
+   * Renvoyer l'utilisateur vers le menu de son navigateur mobile.
+   *
+   * Cas des navigateurs mobiles qui n'émettent jamais `beforeinstallprompt`
+   * (Firefox Android, Opera, surcouches constructeur) alors qu'ils proposent
+   * tous « Ajouter à l'écran d'accueil ». Sans cette valeur, la personne à qui
+   * l'on vient de demander de quitter WhatsApp pour son navigateur arrive sur
+   * un écran muet : on l'a envoyée changer de navigateur pour installer, puis
+   * on s'est tu.
+   */
+  | 'menu-instructions';
 
 /**
  * Décide ce qu'il faut montrer. L'ordre des règles compte :
@@ -63,7 +86,9 @@ export type InstallAdvice =
  *    seraient inopérantes.
  * 3. Invite native disponible : c'est le chemin le plus court.
  * 4. iOS : aucune invite programmable, seules des instructions.
- * 5. Sinon : se taire plutôt que d'afficher un message inutile.
+ * 5. Mobile sans invite native : renvoyer vers le menu du navigateur, qui
+ *    propose toujours « Ajouter à l'écran d'accueil ».
+ * 6. Sinon (bureau) : se taire plutôt que d'afficher un message inutile.
  */
 export function installAdvice(ctx: {
   ua: string;
@@ -74,5 +99,6 @@ export function installAdvice(ctx: {
   if (isInAppBrowser(ctx.ua)) return 'open-in-browser';
   if (ctx.promptAvailable) return 'prompt';
   if (isIos(ctx.ua)) return 'ios-instructions';
+  if (isMobile(ctx.ua)) return 'menu-instructions';
   return 'hidden';
 }
